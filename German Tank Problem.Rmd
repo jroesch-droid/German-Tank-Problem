@@ -1,0 +1,274 @@
+---
+title: "German Tank Problem"
+output: html_document
+---
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE }
+library(tidyverse)
+
+
+# Estimators
+# 1. Method of Moments Estimator: N_hat_MOM = 2 * mean(sample)
+# 2. Maximum Likelihood Estimator: N_hat_MLE = max(sample)
+# 3. Unbiased Estimator: N_hat_unbiased = (max(sample) * (n+1)/n)
+
+
+
+
+# The function to compute all three of the estimators
+compute_estimators <- function(sample) {
+  n <- length(sample)
+  N_hat_MOM <- 2 * mean(sample)
+  N_hat_MLE <- max(sample)
+  N_hat_unbiased <- (max(sample) * (n+1)/n)
+  
+  return(c(MOM = N_hat_MOM, MLE = N_hat_MLE, Unbiased = N_hat_unbiased))
+}
+
+
+
+
+# The function to run a single simulation
+run_simulation <- function(n, N, num_simulations = 5000) {
+  results <- matrix(0, nrow = num_simulations, ncol = 3)
+  colnames(results) <- c("MOM", "MLE", "Unbiased")
+  
+  # Run simulations
+  for (i in 1:num_simulations) {
+    sample <- sample(1:N, n, replace = FALSE)
+    
+    results[i, ] <- compute_estimators(sample)
+  }
+
+  
+    
+  # Compute the performance metrics
+  means <- colMeans(results)
+  biases <- means - N
+  sds <- apply(results, 2, sd)
+  mses <- biases^2 + sds^2
+  
+  # Return the results
+  return(list(
+    means = means,
+    biases = biases,
+    sds = sds,
+    mses = mses,
+    raw_results = results
+  ))
+}
+
+# Set up simulation scenarios
+scenarios <- list(
+  small_n_small_N = list(n = 6, N = 250),
+  small_n_large_N = list(n = 6, N = 1000),
+  large_n_small_N = list(n = 20, N = 250),
+  large_n_large_N = list(n = 20, N = 1000)
+)
+
+# Run all simulations and set seed to create it again 
+set.seed(341)
+all_results <- lapply(scenarios, function(scenario) {
+  run_simulation(scenario$n, scenario$N)
+})
+
+```
+  
+  
+
+  
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+  create_summary_table <- function(all_results) {
+  estimators <- c("MOM", "MLE", "Unbiased")
+  scenarios <- names(all_results)
+  
+  # Initialize empty data frame with correct columns
+  summary_table <- data.frame(
+    Scenario = character(),
+    Estimator = character(),
+    Mean = numeric(),
+    Bias = numeric(),
+    SD = numeric(),
+    MSE = numeric(),
+    stringsAsFactors = FALSE
+  )
+  
+  # Populate the table
+  for (s in scenarios) {
+    for (e in estimators) {
+      new_row <- data.frame(
+        Scenario = s,
+        Estimator = e,
+        Mean = round(all_results[[s]]$means[e], 2),
+        Bias = round(all_results[[s]]$biases[e], 2),
+        SD = round(all_results[[s]]$sds[e], 2),
+        MSE = round(all_results[[s]]$mses[e], 2),
+        stringsAsFactors = FALSE
+      )
+      summary_table <- rbind(summary_table, new_row)
+    }
+  }
+  
+  return(summary_table)
+}
+
+
+
+
+```
+
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+summary_table2 <- create_summary_table(all_results)
+```
+  
+  
+  
+  
+  
+  
+```{r, echo=FALSE}
+
+# Create plot of MSE
+library(ggplot2)
+
+create_mse_plot <- function(all_results) {
+  scenarios <- names(all_results)
+  
+  # Prepare data for plotting
+  mse_data <- data.frame(
+    Scenario = rep(scenarios, each = 3),
+    Estimator = rep(c("MOM", "MLE", "Unbiased"), length(scenarios)),
+    MSE = NA
+  )
+  
+  # Fill in MSE values
+  row <- 1
+  for (s in scenarios) {
+    for (e in c("MOM", "MLE", "Unbiased")) {
+      mse_data[row, "MSE"] <- all_results[[s]]$mses[e]
+      row <- row + 1
+    }
+  }
+  
+  # Scenario labels
+  scenario_labels <- c(
+    "small_n_small_N" = "n=6, N=250",
+    "small_n_large_N" = "n=6, N=1000",
+    "large_n_small_N" = "n=20, N=250",
+    "large_n_large_N" = "n=20, N=1000"
+  )
+  
+  # Create plot
+  mse_plot <- ggplot(mse_data, aes(x = Scenario, y = MSE, fill = Estimator)) +
+    geom_bar(stat = "identity", position = "dodge") +
+    scale_x_discrete(labels = scenario_labels) +
+    scale_fill_manual(values = c("MOM" = "purple", "MLE" = "orange", "Unbiased" = "forestgreen")) + 
+    theme_minimal() +
+    labs(
+      title = "Mean Squared Error of Estimators",
+      x = "Scenario",
+      y = "Mean Squared Error",
+      fill = "Estimator"
+    ) +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  
+  return(mse_plot)
+}
+
+mse_plot <- create_mse_plot(all_results)
+
+
+```
+  
+  
+  
+  
+```{r, echo=FALSE}
+# Fixed create_box plot function
+create_boxplot <- function(all_results) {
+  
+  boxplot_data <- data.frame(
+    Estimate = numeric(),
+    Estimator = character(),
+    Scenario = character(),
+    True_N = numeric()
+  )
+  
+  # Add data for each scenario
+  for (s in names(all_results)) {
+    true_N <- ifelse(grepl("small_N", s), 250, 1000)
+    
+    # Add data for each estimator
+    for (e in c("MOM", "MLE", "Unbiased")) {
+      temp_data <- data.frame(
+        Estimate = all_results[[s]]$raw_results[, e],
+        Estimator = rep(e, nrow(all_results[[s]]$raw_results)),
+        Scenario = rep(s, nrow(all_results[[s]]$raw_results)),
+        True_N = rep(true_N, nrow(all_results[[s]]$raw_results))
+      )
+      boxplot_data <- rbind(boxplot_data, temp_data)
+    }
+  }
+  
+  # Scenario labels
+  scenario_labels <- c(
+    "small_n_small_N" = "n=6, N=250",
+    "small_n_large_N" = "n=6, N=1000",
+    "large_n_small_N" = "n=20, N=250",
+    "large_n_large_N" = "n=20, N=1000"
+  )
+  
+  # Create boxplot
+  boxplot <- ggplot(boxplot_data, aes(x = Estimator, y = Estimate, fill = Estimator)) +
+    geom_boxplot() +
+    facet_wrap(~ Scenario, scales = "free_y", labeller = as_labeller(scenario_labels)) +
+    scale_fill_manual(values = c("MOM" = "purple", "MLE" = "orange", "Unbiased" = "forestgreen")) +
+    geom_hline(aes(yintercept = True_N), linetype = "dashed") +
+    theme_minimal() +
+    labs(
+      title = "Distribution of Estimates",
+      x = "Estimator",
+      y = "Estimated N",
+      fill = "Estimator"
+    )
+  
+  return(boxplot)
+}
+
+boxplot <- create_boxplot(all_results)
+
+```
+  
+  
+```{r, echo=FALSE}
+# Analyze the given serial numbers
+the_data <- c(43, 86, 171, 36, 177, 222)
+estimations <- compute_estimators(the_data)
+```
+
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+library(pander)
+```
+
+
+\texttt{3. Simulation Study Results:}
+
+
+```{r, echo=FALSE}
+boxplot
+```
+
+
+
+```{r, echo=FALSE}
+mse_plot
+```
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+pander(summary_table2)
+```
