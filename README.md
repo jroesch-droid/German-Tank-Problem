@@ -4,4 +4,4 @@ This project exercises a statistical method that was used in WWII to accurately 
 
 This goes through 3 different estimators: the maximum likelihood estimator (MLE), the method of moments (MOM), and the third unbiased estimator.
 
-We find out that the third estimator is the best estimator out of the three.
+We find out that the third unbiased estimator is the best estimator out of the three. Which is the one the Allies used during WWII
